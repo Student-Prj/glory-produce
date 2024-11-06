@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Glory Farms E-Commerce Infrastructure'
+
+Parameters:
+  InstanceType:
+    Type: String
+    Default: t2.micro
+    Description: EC2 Instance Type for web servers
+    AllowedValues:
+      - t2.micro
+      - t2.small
+      - t2.medium
+
+Resources:
+  # EC2 instance for the web application
+  WebServer:
+    Type: 'AWS::EC2::Instance'
+    Properties:
+      InstanceType: !Ref InstanceType
+      ImageId: 'ami-0c55b159cbfafe1f0' # Amazon Linux AMI ID
+      KeyName: 'your-key-pair-name'
+      SecurityGroups:
+        - !Ref WebServerSecurityGroup
+      Tags:
+        - Key: Name
+          Value: GloryFarmsWebServer
+
+  # Security group for web server allowing HTTP and HTTPS
+  WebServerSecurityGroup:
+    Type: 'AWS::EC2::SecurityGroup'
+    Properties:
+      GroupDescription: 'Allow HTTP, HTTPS, and SSH'
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: '80'
+          ToPort: '80'
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: '443'
+          ToPort: '443'
+          CidrIp: '0.0.0.0/0'
+        - IpProtocol: tcp
+          FromPort: '22'
+          ToPort: '22'
+          CidrIp: '0.0.0.0/0'
+
+  # S3 Bucket for storing product images
+  ProductImagesBucket:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: 'glory-farms-product-images'
+      VersioningConfiguration:
+        Status: 'Enabled'
+
+  # RDS instance for product, order, and customer data
+  RDSInstance:
+    Type: 'AWS::RDS::DBInstance'
+    Properties:
+      DBInstanceClass: 'db.t2.micro'
+      Engine: 'MySQL'
+      DBInstanceIdentifier: 'glory-farms-db'
+      MasterUsername: 'admin'
+      MasterUserPassword: 'password123'
+      AllocatedStorage: '20'
+      PubliclyAccessible: 'false'
+
+  # CloudWatch Logs to track web server logs
+  WebServerLogGroup:
+    Type: 'AWS::Logs::LogGroup'
+    Properties:
+      LogGroupName: '/aws/ec2/glory-farms-web-server'
+
+  # IAM Role for EC2 access to S3
+  EC2Role:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Action: 'sts:AssumeRole'
+            Effect: 'Allow'
+            Principal:
+              Service: 'ec2.amazonaws.com'
+      Policies:
+        - PolicyName: 'S3AccessPolicy'
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: 'Allow'
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !Sub 'arn:aws:s3:::glory-farms-product-images/*'
+
+Outputs:
+  WebServerPublicIP:
+    Value: !GetAtt WebServer.PublicIp
+    Description: 'Public IP address of the EC2 web server'
